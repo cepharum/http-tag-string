@@ -1,0 +1,24 @@
+{
+  "name": "http-tag-string",
+  "version": "0.0.1",
+  "description": "supports tagged strings describing processable HTTP requests",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cepharum/http-tag-string.git"
+  },
+  "keywords": [
+    "http",
+    "tagged",
+    "strings"
+  ],
+  "author": "Thomas Urban",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cepharum/http-tag-string/issues"
+  },
+  "homepage": "https://github.com/cepharum/http-tag-string#readme"
+}
