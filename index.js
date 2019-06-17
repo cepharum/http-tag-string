@@ -135,7 +135,7 @@ module.exports = function( serviceUrl = null, { folding = false } = {} ) {
 		}
 
 		// parse verb
-		const parsedRequestLine = /^\s*(\S+)\s+(\/.*)(?:\s+HTTP\/\d+\.\d+)?\s*$/.exec( requestLine );
+		const parsedRequestLine = /^\s*(\S+)\s+(\/.*?)(?:\s+HTTP\/\d+\.\d+)?\s*$/.exec( requestLine );
 		if ( !parsedRequestLine ) {
 			throw new TypeError( "invalid or missing HTTP request line" );
 		}
