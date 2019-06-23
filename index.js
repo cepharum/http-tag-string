@@ -153,7 +153,7 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 			return new Promise( ( resolve, reject ) => {
 				const headers = Object.assign( {}, originalHeaders );
 
-				const customHeaderNames = Object.keys( customHeaders );
+				const customHeaderNames = Object.keys( customHeaders || {} );
 				const numCustomHeaders = customHeaderNames.length;
 				for ( let i = 0; i < numCustomHeaders; i++ ) {
 					const name = customHeaderNames[i];
