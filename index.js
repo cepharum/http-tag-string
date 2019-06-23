@@ -28,10 +28,17 @@
 
 "use strict";
 
+const Path = require( "path" );
 const { URL } = require( "url" );
 const { Readable } = require( "stream" );
 const Http = require( "http" );
 const Https = require( "https" );
+
+
+const ProtocolToLibrary = {
+	"http:": Http,
+	"https:": Https,
+};
 
 
 /**
@@ -54,21 +61,18 @@ const Https = require( "https" );
  *
  * @param {string} serviceUrl URL providing scheme, hostname and port of service to be queried
  * @param {boolean} folding controls whether folded lines should be supported or not (must be false to support arbitrary indenting on described HTTP message)
+ * @param {boolean} followRedirects set true to implicitly follow responses redirecting to different location
  * @return {function(payload, headers, timeout):Promise<Http.ServerResponse>} tag function customizing request and promising response
  */
-module.exports = function( serviceUrl = null, { folding = false } = {} ) {
-	const url = new URL( serviceUrl || process.env.HTTP_SERVICE_URL );
+module.exports = function( serviceUrl = null, { folding = false, followRedirects = false } = {} ) {
+	const baseUrl = new URL( serviceUrl || process.env.HTTP_SERVICE_URL );
 
-	const library = (function() {
-		switch ( url.protocol ) {
-			case "http:" : return Http;
-			case "https:" : return Https;
-			default :
-				throw new TypeError( "unsupported scheme in URL of service" );
-		}
-	})();
+	const library = ProtocolToLibrary[baseUrl.protocol];
+	if ( !library ) {
+		throw new TypeError( "unsupported service protocol " + baseUrl.protocol );
+	}
 
-	const { hostname: HOSTNAME, host: HOST } = url;
+	const { hostname: HOSTNAME, host: HOST, pathname: PREFIX } = baseUrl;
 
 	const colonIndex = HOST.indexOf( ":" );
 	const PORT = colonIndex > -1 ? Number( HOST.slice( colonIndex + 1 ) ) : NaN;
@@ -135,7 +139,7 @@ module.exports = function( serviceUrl = null, { folding = false } = {} ) {
 		}
 
 		// parse verb
-		const parsedRequestLine = /^\s*(\S+)\s+(\/.*?)(?:\s+HTTP\/\d+\.\d+)?\s*$/.exec( requestLine );
+		const parsedRequestLine = /^\s*(\S+)\s+\/(.*?)(?:\s+HTTP\/\d+\.\d+)?\s*$/.exec( requestLine );
 		if ( !parsedRequestLine ) {
 			throw new TypeError( "invalid or missing HTTP request line" );
 		}
@@ -143,8 +147,9 @@ module.exports = function( serviceUrl = null, { folding = false } = {} ) {
 		const [ , VERB, PATH ] = parsedRequestLine;
 
 
+		return function( payload = null, customHeaders = {}, { timeout = 5000, followRedirects: localFollowRedirects = null } = {} ) {
+			const _followRedirects = localFollowRedirects == null ? Boolean( followRedirects ) : Boolean( localFollowRedirects );
 
-		return function( payload = null, customHeaders = {}, { timeout = 5000 } = {} ) {
 			return new Promise( ( resolve, reject ) => {
 				const headers = Object.assign( {}, originalHeaders );
 
@@ -172,8 +177,8 @@ module.exports = function( serviceUrl = null, { folding = false } = {} ) {
 				const requestOptions = {
 					method: VERB,
 					host: HOSTNAME,
-					path: PATH,
-					headers,
+					path: Path.posix.resolve( PREFIX, PATH ),
+					headers: Object.assign( {}, headers, { host: HOSTNAME } ),
 				};
 
 				if ( timeout > 0 ) {
@@ -184,45 +189,85 @@ module.exports = function( serviceUrl = null, { folding = false } = {} ) {
 					requestOptions.port = PORT;
 				}
 
-				const request = library.request( requestOptions, response => {
-					let bodyFetcher = null;
+				sendRequest( library, requestOptions );
 
-					resolve( Object.assign( response, {
-						content: getBody,
-						json: () => getBody().then( raw => JSON.parse( raw.toString( "utf8" ) ) ),
-						text: () => getBody().then( raw => raw.toString( "utf8" ) ),
-					} ) );
 
-					/**
-					 * Fetches body from current response.
-					 *
-					 * @returns {Promise<Buffer>} promises body fetched from response
-					 */
-					function getBody() {
-						if ( bodyFetcher == null ) {
-							bodyFetcher = new Promise( ( resolve, reject ) => {
-								const chunks = [];
+				function sendRequest( context, options ) {
+					const request = context.request( options, response => {
+						if ( _followRedirects && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location != null ) {
+							if ( payload instanceof Readable ) {
+								reject( new Error( "following redirection failed due to streamed request body gone" ) );
+								return;
+							}
 
-								response.on( "data", chunk => chunks.push( chunk ) );
-								response.on( "end", () => resolve( Buffer.concat( chunks ) ) );
-								response.on( "error", reject );
-							} );
+							const schema = context === Https ? "https://" : "http://";
+							const target = new URL( response.headers.location, schema + options.host + options.path );
+
+							const subContext = ProtocolToLibrary[target.protocol];
+							if ( !subContext ) {
+								reject( new Error( "invalid redirection switching to unsupported protocol " + target.protocol ) );
+								return;
+							}
+
+							const subOptions = {
+								method: response.statusCode === 303 ? "GET" : options.method,
+								host: target.hostname,
+								path: target.pathname,
+								headers: Object.assign( {}, options.headers, { host: target.hostname } ),
+							};
+
+							if ( parseInt( options.timeout ) > -1 ) {
+								subOptions.timeout = options.timeout;
+							}
+
+							if ( target.port > 0 ) {
+								subOptions.port = target.port;
+							}
+
+							sendRequest( subContext, subOptions );
+							return;
 						}
 
-						return bodyFetcher;
-					}
-				} );
 
-				request.on( "error", reject );
+						let bodyFetcher = null;
 
-				if ( payload != null ) {
-					if ( payload instanceof Readable ) {
-						payload.pipe( request );
+						resolve( Object.assign( response, {
+							content: getBody,
+							json: () => getBody().then( raw => JSON.parse( raw.toString( "utf8" ) ) ),
+							text: () => getBody().then( raw => raw.toString( "utf8" ) ),
+						} ) );
+
+						/**
+						 * Fetches body from current response.
+						 *
+						 * @returns {Promise<Buffer>} promises body fetched from response
+						 */
+						function getBody() {
+							if ( bodyFetcher == null ) {
+								bodyFetcher = new Promise( ( resolve, reject ) => {
+									const chunks = [];
+
+									response.on( "data", chunk => chunks.push( chunk ) );
+									response.on( "end", () => resolve( Buffer.concat( chunks ) ) );
+									response.on( "error", reject );
+								} );
+							}
+
+							return bodyFetcher;
+						}
+					} );
+
+					request.on( "error", reject );
+
+					if ( payload != null && options.method !== "GET" && options.method !== "HEAD" ) {
+						if ( payload instanceof Readable ) {
+							payload.pipe( request );
+						} else {
+							request.end( payload );
+						}
 					} else {
-						request.end( payload );
+						request.end( rawBody || null );
 					}
-				} else {
-					request.end( rawBody || null );
 				}
 			} );
 		};
