@@ -1,6 +1,6 @@
 {
   "name": "http-tag-string",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "supports tagged strings describing processable HTTP requests",
   "main": "index.js",
   "scripts": {
