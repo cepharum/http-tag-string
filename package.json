@@ -20,5 +20,10 @@
   "bugs": {
     "url": "https://github.com/cepharum/http-tag-string/issues"
   },
-  "homepage": "https://github.com/cepharum/http-tag-string#readme"
+  "homepage": "https://github.com/cepharum/http-tag-string#readme",
+  "devDependencies": {
+    "mocha": "^6.1.4",
+    "should": "^13.2.3",
+    "should-http": "^0.1.1"
+  }
 }
