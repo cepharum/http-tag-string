@@ -24,7 +24,7 @@
   "homepage": "https://github.com/cepharum/http-tag-string#readme",
   "devDependencies": {
     "eslint": "^6.0.0",
-    "eslint-config-cepharum": "^1.0.8",
+    "eslint-config-cepharum": "^1.0.9",
     "eslint-plugin-promise": "^4.1.1",
     "mocha": "^6.1.4",
     "should": "^13.2.3",
