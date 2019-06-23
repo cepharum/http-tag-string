@@ -29,7 +29,6 @@
 "use strict";
 
 const Path = require( "path" );
-const { URL } = require( "url" );
 const { Readable } = require( "stream" );
 const Http = require( "http" );
 const Https = require( "https" );
@@ -86,7 +85,7 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 	 * @param {string[]} expressions results of expressions used between literal slices of tagged string
 	 * @return {function(payload:*, headers:object):Promise<ServerResponse>} provides function promising response to described HTTP request on invocation
 	 */
-	const client = function( literals, ...expressions ) {
+	function client( literals, ...expressions ) {
 		// compile slices of tagged string into regular string
 		const count = Math.max( literals.length, expressions.length );
 		const slices = [ "", "" ];
@@ -104,8 +103,8 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 				}
 			}
 
-			slices[sliceIndex] += literal != null ? String( literal ) : "";
-			slices[sliceIndex] += expression != null ? String( expression ) : "";
+			slices[sliceIndex] += literal == null ? "" : String( literal );
+			slices[sliceIndex] += expression == null ? "" : String( expression );
 		}
 
 		const [ rawHeader, rawBody ] = slices;
@@ -161,15 +160,17 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 					headers[name.toLowerCase()] = customHeaders[name];
 				}
 
+				let _payload = payload;
+
 				if ( payload != null ) {
 					if ( !Buffer.isBuffer( payload ) && !( payload instanceof Readable ) ) {
 						if ( typeof payload === "object" ) {
-							payload = Buffer.from( JSON.stringify( payload ), "utf8" );
+							_payload = Buffer.from( JSON.stringify( payload ), "utf8" );
 							if ( !headers.hasOwnProperty( "content-type" ) ) {
 								headers["content-type"] = "application/json; charset=utf8";
 							}
 						} else {
-							payload = Buffer.from( String( payload ), "utf8" );
+							_payload = Buffer.from( String( payload ), "utf8" );
 						}
 					}
 				}
@@ -192,10 +193,17 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 				sendRequest( library, requestOptions );
 
 
+				/**
+				 * Sends request in context of provided library.
+				 *
+				 * @param {{request:function}} context library exposing method request() for sending request
+				 * @param {object} options description of request to send
+				 * @returns {void}
+				 */
 				function sendRequest( context, options ) {
 					const request = context.request( options, response => {
 						if ( _followRedirects && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location != null ) {
-							if ( payload instanceof Readable ) {
+							if ( _payload instanceof Readable ) {
 								reject( new Error( "following redirection failed due to streamed request body gone" ) );
 								return;
 							}
@@ -244,12 +252,12 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 						 */
 						function getBody() {
 							if ( bodyFetcher == null ) {
-								bodyFetcher = new Promise( ( resolve, reject ) => {
+								bodyFetcher = new Promise( ( _resolve, _reject ) => {
 									const chunks = [];
 
 									response.on( "data", chunk => chunks.push( chunk ) );
-									response.on( "end", () => resolve( Buffer.concat( chunks ) ) );
-									response.on( "error", reject );
+									response.on( "end", () => _resolve( Buffer.concat( chunks ) ) );
+									response.on( "error", _reject );
 								} );
 							}
 
@@ -259,11 +267,11 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 
 					request.on( "error", reject );
 
-					if ( payload != null && options.method !== "GET" && options.method !== "HEAD" ) {
-						if ( payload instanceof Readable ) {
-							payload.pipe( request );
+					if ( _payload != null && options.method !== "GET" && options.method !== "HEAD" ) {
+						if ( _payload instanceof Readable ) {
+							_payload.pipe( request );
 						} else {
-							request.end( payload );
+							request.end( _payload );
 						}
 					} else {
 						request.end( rawBody || null );
@@ -271,7 +279,7 @@ module.exports = function( serviceUrl = null, { folding = false, followRedirects
 				}
 			} );
 		};
-	};
+	}
 
 	/**
 	 * Generates value of **Authorization** header used in HTTP requests to pass

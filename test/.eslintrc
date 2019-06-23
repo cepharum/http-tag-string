@@ -1,0 +1,6 @@
+{
+	"rules": {
+		"no-redeclare": "off",
+		"max-nested-callbacks": "off"
+	}
+}

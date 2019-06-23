@@ -120,11 +120,7 @@ describe( "http-tag-string exports generator which", () => {
 
 			describe( "returns Promise which", () => {
 				it( "is a Promise", () => {
-					const p = Defunct`GET /`();
-
-					p.should.be.Promise();
-
-					return p.catch( e => {} );
+					return Defunct`GET /`().should.be.Promise().which.is.rejected();
 				} );
 
 				it( "is rejected due to base URL provided before selecting some missing server", () => {
