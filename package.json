@@ -7,6 +7,9 @@
     "style": "eslint .",
     "test": "mocha --ui tdd --recursive test/**/*.js"
   },
+  "engines": {
+    "node": ">=10.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cepharum/http-tag-string.git"
