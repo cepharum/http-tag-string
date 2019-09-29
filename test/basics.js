@@ -110,9 +110,11 @@ describe( "http-tag-string exports generator which", () => {
 			( () => Func`/` ).should.throw();
 		} );
 
-		describe( "returns a function when used for tagging string which", () => {
+		describe( "returns a function when used for tagging string which", function() {
 			const Defunct = require( "../" )( "https://cepharum.de:65432/" );
 			const Funct = require( "../" )( "https://google.com/" );
+
+			this.timeout( 5000 ); // occasional issue: Defunct does not fail instantly, but after several seconds when running locally under Windows
 
 			it( "is a function", () => {
 				Defunct`GET /`.should.be.Function();
