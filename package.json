@@ -29,7 +29,7 @@
     "eslint": "^6.5.0",
     "eslint-config-cepharum": "^1.0.10",
     "eslint-plugin-promise": "^4.2.1",
-    "mocha": "^6.2.0",
+    "mocha": "^10.2.0",
     "should": "^13.2.3",
     "should-http": "^0.1.1"
   }
